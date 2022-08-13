@@ -1,0 +1,441 @@
+---
+title: "How to design a representative data visualization in research paper"
+author: "Herdiantri Sufriyana"
+date: "8/12/2022"
+output: html_document
+---
+
+```{r Set up reproducible environment, include=FALSE}
+# Please restart R and re-run this chunk in case an error occurs during setup
+
+# Install a package to setup reproducible environment if not available
+if(!require(renv))
+  install.packages('renv')
+
+if(!file.exists('renv'))
+  renv::init(restart=F)
+
+# Install a package to install a specific version of another package
+if(!require(devtools))
+  install.packages('devtools')
+
+# Install a package to install packages with versions compatible among them
+if(!require(BiocManager))
+  devtools::install_version('BiocManager','1.30.18',upgrade=F,force=T)
+
+if(BiocManager::version()!='3.15')
+  BiocManager::install(version='3.15',update=T,ask=F)
+```
+
+```{r List the packages, include=FALSE}
+pkgs=
+  c('name','version','method','load'
+    ,'tidyverse','1.3.2','bioc','yes'
+    ,'dslabs','0.7.4','bioc','yes'
+    ,'knitr','1.39','bioc','yes'
+    ,'kableExtra','1.3.4','bioc','yes'
+    ,'ggrepel','0.9.1','bioc','yes'
+    ,'ggpubr','0.4.0','bioc','yes')
+
+pkgs=
+  matrix(pkgs,ncol=4,byrow=T)
+
+pkgs=
+  `colnames<-`(pkgs[-1,,drop=F],pkgs[1,,drop=T])
+
+pkgs=
+  as.data.frame(pkgs)
+```
+
+```{r Install packages if none or false version, include=FALSE}
+for(i in seq(nrow(pkgs))){
+  if(pkgs$name[i]%in%installed.packages()[,1]){
+    if(packageVersion(pkgs$name[i])==pkgs$version[i])
+      is.install=F
+    else
+      is.install=T
+  }else{
+    is.install=T
+  }
+  
+  if(is.install){
+    if(pkgs$method[i]=='bioc')
+      BiocManager::install(pkgs$name[i],update=F,ask=F,force=T)
+    else if(pkgs$method[i]=='devtools')
+      devtools::install_version(pkgs$name[i],pkgs$version[i],upgrade=F,force=T)
+    else if(pjgs$method[i]=='github')
+      devtools::install_github(pkgs$name[i],upgrade=F,force=T)
+    else
+      install.packages(pkgs$pkg[i])
+  }
+  
+  if(pkgs$load[i]=='yes')
+    library(pkgs$name[i],character.only=T)
+}; rm(i)
+```
+
+```{r Other configurations, include=FALSE}
+ds_theme_set()
+```
+
+# Data preprocessing
+
+```{r Load gapminder data}
+data(gapminder)
+
+gapminder %>%
+  dim()
+```
+
+```{r Preview gapminder}
+gapminder %>%
+  head() %>%
+  mutate(year=factor(year)) %>%
+  knitr::kable(format.args=list(big.mark=',')) %>%
+  kable_classic()
+```
+
+```{r Population per continent in 2012, fig.height=2.53, fig.width=3.54}
+# Filter data in 2012
+tab=
+  gapminder %>%
+  mutate(year=factor(year)) %>%
+  filter(year=='2012')
+
+tab %>%
+  head() %>%
+  kable(format.args=list(big.mark=',')) %>%
+  kable_classic()
+
+
+# Summarize total number of population per continent in 2012
+tab=
+  tab %>%
+  group_by(continent) %>%
+  summarize(population=sum(population))
+
+tab %>%
+  kable(format.args=list(big.mark=',')) %>%
+  kable_classic()
+
+# Compute the number of population worldwide and the proportion per continent
+tab=
+  tab %>%
+  ungroup() %>%
+  mutate(total=sum(population)) %>%
+  mutate(p=round(population/total*100,2))
+
+tab %>%
+  kable(format.args=list(big.mark=',')) %>%
+  kable_classic()
+
+# Create bar plot
+plt=
+  tab %>%
+  ggplot(aes(continent,p)) +
+  geom_col()
+plt
+
+# Order bar plot by the proportion
+plt=
+  tab %>%
+  mutate(continent=reorder(continent,p)) %>%
+  ggplot(aes(continent,p)) +
+  geom_col()
+plt
+
+# Make bar plot horizontal
+plt=
+  plt +
+  coord_flip()
+plt
+
+# Rename the axis titles
+plt=
+  plt +
+  scale_x_discrete('Continent') +
+  scale_y_continuous('Population (%)')
+plt
+
+# Save for paneling
+figure1a=plt
+```
+
+```{r Population change per continent, fig.height=3.94, fig.width=5.51}
+# Filter data in 1962 and 2012
+tab=
+  gapminder %>%
+  filter(year%in%c('1962','2012'))
+
+tab %>%
+  .[c(1:5,(nrow(.)-5):nrow(.)),] %>%
+  mutate(year=factor(year)) %>%
+  kable(format.args=list(big.mark=',')) %>%
+  kable_classic()
+
+# Summarize total number of population per continent and year
+tab=
+  tab %>%
+  group_by(continent,year) %>%
+  summarize(population=sum(population),.groups='drop') 
+
+tab %>%
+  spread(year,population) %>%
+  kable(format.args=list(big.mark=','),) %>%
+  kable_classic() %>%
+  add_header_above(c(' '=1,'year'=2))
+
+# Create slope charts
+plt=
+  tab  %>%
+  mutate(hjust=ifelse(year=='1962',1,0)) %>%
+  ggplot(aes(year,population)) +
+  geom_line(aes(color=continent),show.legend=F) +
+  geom_text(aes(label=continent,hjust=hjust)) +
+  scale_x_continuous('Year',limits=c(1952,2022),breaks=seq(1952,2022,10)) +
+  scale_y_continuous('Population (n)')
+plt
+
+# Use color-blind-friendly color palette
+plt=
+  plt +
+  scale_color_manual(
+    values=
+      c('#E69F00','#56B4E9','#009E73','#D55E00','#CC79A7')
+  )
+plt
+
+# Save for paneling
+figure1b=plt
+```
+
+```{r Population per continent in 1962 & 2012, fig.height=5.34, fig.width=7.48}
+# Filter data in 1962 and 2012
+tab=
+  gapminder %>%
+  mutate(year=factor(year)) %>%
+  filter(year%in%c('1962','2012'))
+
+tab %>%
+  .[c(1:5,(nrow(.)-5):nrow(.)),] %>%
+  kable(format.args=list(big.mark=',')) %>%
+  kable_classic()
+
+# Create box and jitter plot
+plt=
+  tab %>%
+  mutate(continent=reorder(continent,population,mean)) %>%
+  ggplot(aes(year,population)) +
+  geom_boxplot(width=0.5,outlier.color=NA) +
+  geom_jitter(width=0.1,size=1)
+plt
+
+# Split into two panels by continent
+plt=
+  plt +
+  facet_grid(~continent)
+plt
+
+# Use log10-scale for the axis
+plt=
+  plt +
+  scale_y_continuous(trans='log10')
+plt
+
+# Rename the axis titles
+plt=
+  plt +
+  scale_x_discrete('Year') +
+  scale_y_continuous('Population (n)',trans='log10')
+plt
+
+# Save for paneling
+figure1c=plt
+```
+
+```{r Combining all panels of Figure 1, fig.height=7.48, fig.width=7.48}
+# Combine all panels
+ggarrange(
+  ggarrange(
+    figure1a
+    ,figure1b
+    ,widths=c(2.5,4.98)
+    ,labels=c('A','B')
+    ,nrow=1,ncol=2
+  )
+  ,figure1c
+  ,labels=c('','C')
+  ,nrow=2,ncol=1
+)
+# Save as Figure 1 in EPS format
+ggsave('figure1.eps',width=7.48,height=7.48)
+```
+
+```{r Asian countries 1962 & 2012, fig.height=3.54, fig.width=3.54}
+# Filter data in 1962 and 2012 from Asia
+tab=
+  gapminder %>%
+  filter(
+    year%in%c('1962','2012')
+    &continent=='Asia'
+  )
+
+tab %>%
+  .[c(1:5,(nrow(.)-5):nrow(.)),] %>%
+  mutate(year=factor(year)) %>%
+  kable(format.args=list(big.mark=',')) %>%
+  kable_classic()
+
+# Summarize total number of population per region in 1962 and 2012
+tab=
+  tab %>%
+  group_by(region,year) %>%
+  summarize(population=sum(population),.groups='drop')
+
+tab %>%
+  mutate(year=factor(year)) %>%
+  spread(year,population) %>%
+  kable(format.args=list(big.mark=',')) %>%
+  kable_classic() %>%
+  add_header_above(c(' '=1,'year'=2))
+
+# Compute the minus (difference) and average (mean)
+tab=
+  tab %>%
+  spread(year,population) %>%
+  mutate(
+    minus=`2012`-`1962`
+    ,average=(`2012`+`1962`)/2
+  )
+
+tab %>%
+  .[c(1:5,(nrow(.)-5):nrow(.)),] %>%
+  kable(format.args=list(big.mark=',')) %>%
+  kable_classic() %>%
+  add_header_above(c(' '=1,'year'=2,' '=1,' '=1))
+
+# Create Bland-Altman plot
+plt=
+  tab %>%
+  ggplot(aes(average,minus)) +
+  geom_point() +
+  geom_text_repel(aes(label=region)) +
+  coord_equal()
+plt
+
+# Use log10-scale for the axis
+plt=
+  plt +
+  scale_x_continuous('Average of 1962 and 2012',trans='log10') +
+  scale_y_continuous('Difference between 1962 and 2012',trans='log10')
+plt
+
+# Save for paneling
+figure2a=plt
+```
+
+```{r Potential determinants of population growth, fig.height=7.08, fig.width=3.54}
+# Select a country with largest population fore each region of interest
+top_countries=
+  gapminder %>%
+  filter(
+    year=='2012'
+    &continent=='Asia'
+    &region%in%c('Southern Asia','Eastern Asia','South-Eastern Asia')
+  ) %>%
+  group_by(region) %>%
+  arrange(desc(population)) %>%
+  slice(1)
+
+top_countries %>%
+  mutate(year=factor(year)) %>%
+  kable(format.args=list(big.mark=',')) %>%
+  kable_classic()
+
+# Filter only data from the selected countries from 1962 to 2012
+tab=
+  gapminder %>%
+  filter(
+    country%in%top_countries$country
+    &between(year,1962,2012)
+  ) %>%
+  select(-continent,-region) %>%
+  gather(metric,value,-country,-year) %>%
+  mutate(
+    metric=
+      metric %>%
+      str_replace_all('_',' ') %>%
+      str_to_sentence() %>%
+      str_replace_all('Gdp','GDP') %>%
+      factor(
+        c('Population','Fertility','Infant mortality','Life expectancy','GDP')
+      )
+    ,country=
+      factor(
+        country
+        ,c('China','India','Indonesia')
+      )
+  )
+
+tab %>%
+  filter(year%in%seq(1962,2012,10)) %>%
+  spread(year,value) %>%
+  arrange(metric,country) %>%
+  select(metric,everything()) %>%
+  mutate(metric=ifelse(duplicated(metric),'',as.character(metric))) %>%
+  kable(format.args=list(big.mark=',')) %>%
+  kable_classic() %>%
+  add_header_above(c(' '=1,' '=1,'year *'=6)) %>%
+  add_footnote(
+    label='*, only data every 10 years are shown for simplicity. GDP,gross domestic product'
+    ,notation='none'
+  )
+
+plt=
+  tab %>%
+  ggplot(aes(year,value,color=country)) +
+  geom_line()
+plt
+
+plt=
+  plt +
+  facet_grid(metric~.,scales='free_y')
+plt
+
+plt=
+  plt +
+  scale_x_continuous('Year',limits=c(1962,2012),breaks=seq(1962,2012,10)) +
+  scale_y_continuous('') +
+  scale_color_manual('',values=c('#E69F00','#56B4E9','#CC79A7')) +
+  theme(
+    strip.text.y=element_text(angle=0)
+    ,legend.position='top'
+  )
+plt
+
+# Save for paneling
+figure2b=plt
+```
+
+```{r Combining all panels of Figure 2, fig.height=7.08, fig.width=3.54}
+# Combine all panels
+ggarrange(
+ figure2a
+  ,figure2b
+  ,heights=c(3.54,3.54)
+  ,labels=c('A','B')
+  ,nrow=2,ncol=1
+)
+# Save as Figure 2 in EPS format
+ggsave('figure2.eps',width=3.54,height=7.08)
+```
+
+
+
+
+
+
+
+
+
+
